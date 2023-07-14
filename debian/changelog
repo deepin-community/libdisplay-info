@@ -1,5 +1,21 @@
-template-repository (1.0-1) unstable; urgency=medium
+libdisplay-info (0.1.1-2) unstable; urgency=medium
 
-  * Initial release
+  * Upload to unstable.
 
- -- Tsic404 <liuheng@deepin.org>  Sat, 28 Jan 2023 13:46:49 +0800
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Sun, 09 Jul 2023 19:43:49 +0900
+
+libdisplay-info (0.1.1-1) experimental; urgency=medium
+
+  * NUR:
+    - remove obsolete shared_lib.patch
+    - pkgconfig file is now libdisplay-info.pc
+      (upstream choice now that a shared library is officially released)
+  * Fix watch file version matching.
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Wed, 08 Mar 2023 14:48:24 +0900
+
+libdisplay-info (0.0.0+20230207+git506925a-1) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Tue, 07 Feb 2023 23:36:21 +0900

@@ -1,0 +1,9 @@
+*.c usr/src/libdisplay-info-src/
+include usr/src/libdisplay-info-src/
+di-edid-decode usr/src/libdisplay-info-src/
+tool usr/src/libdisplay-info-src/
+test usr/src/libdisplay-info-src/
+libdisplay-info.map usr/src/libdisplay-info-src/
+meson.build usr/src/libdisplay-info-src/
+LICENSE usr/src/libdisplay-info-src/
+README.md usr/src/libdisplay-info-src/
