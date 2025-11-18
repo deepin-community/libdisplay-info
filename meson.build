@@ -1,16 +1,20 @@
 project(
 	'libdisplay-info',
 	'c',
-	version: '0.1.1',
+	version: '0.3.0',
 	license: 'MIT',
 	meson_version: '>= 0.57.0',
 	default_options: [
 		'c_std=c11',
 		'warning_level=3',
+		'wrap_mode=nodownload',
 	],
 )
 
-assert(meson.project_version().split('.')[0] == '0')
+version = meson.project_version().split('-')[0]
+version_major = version.split('.')[0]
+version_minor = version.split('.')[1]
+assert(version_major == '0')
 
 dep_hwdata = dependency('hwdata', required: false, native: true)
 if dep_hwdata.found()
@@ -56,9 +60,11 @@ di_lib = library(
 		'cta-vic-table.c',
 		'cvt.c',
 		'displayid.c',
+		'displayid2.c',
 		'dmt-table.c',
 		'edid.c',
 		'gtf.c',
+		'hdmi-vic-table.c',
 		'info.c',
 		'log.c',
 		'memory-stream.c',
@@ -69,8 +75,8 @@ di_lib = library(
 	link_args: symbols_flag,
 	link_depends: symbols_file,
 	install: true,
-	version: meson.project_version(),
-	soversion: meson.project_version().split('.')[1],
+	version: version,
+	soversion: version_minor,
 )
 
 install_subdir(

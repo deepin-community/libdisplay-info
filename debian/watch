@@ -1,2 +1,3 @@
 version=4
-https://gitlab.freedesktop.org/emersion/libdisplay-info/-/tags .*/libdisplay-info-(.*)\.tar\.gz
+opts="searchmode=plain" \
+  https://gitlab.freedesktop.org/emersion/libdisplay-info/-/tags archive/[\d.]+/libdisplay-info@ANY_VERSION@@ARCHIVE_EXT@

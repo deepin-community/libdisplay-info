@@ -1,3 +1,27 @@
+libdisplay-info (0.3.0-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #1116041).
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Sat, 08 Nov 2025 18:04:57 +0900
+
+libdisplay-info (0.2.0-2) unstable; urgency=medium
+
+  * Reupload to unstable.
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Thu, 25 Jul 2024 17:57:27 +0900
+
+libdisplay-info (0.2.0-1) experimental; urgency=medium
+
+  [ Marc Dequènes ]
+  * NUR with new SONAME.
+  * Bump Standards-Version to 4.7.0 (no changes).
+
+  [ Jeremy Bícha ]
+  * Fix watch file.
+  * Enable partial test and autopkgtests.
+
+ -- Marc Dequènes (Duck) <Duck@DuckCorp.org>  Fri, 19 Jul 2024 15:36:43 +0900
+
 libdisplay-info (0.1.1-2) unstable; urgency=medium
 
   * Upload to unstable.

@@ -606,7 +606,7 @@ struct di_edid_display_range_limits {
 	/* Maximum pixel clock in Hz, zero if unset, rounded to the nearest
 	 * multiple of 0.25 MHz if CVT, otherwise to the nearest multiple of
 	 * 10 MHz */
-	int32_t max_pixel_clock_hz;
+	int64_t max_pixel_clock_hz;
 
 	enum di_edid_display_range_limits_type type;
 
@@ -817,9 +817,22 @@ struct di_displayid;
 /**
  * Get a DisplayID extension block.
  *
- * Returns NULL if the extension block tag is not DI_EDID_EXT_DISPLAYID.
+ * Returns NULL if the extension block tag is not DI_EDID_EXT_DISPLAYID or if
+ * the block does not contain a version 1 DisplayID blob.
  */
 const struct di_displayid *
 di_edid_ext_get_displayid(const struct di_edid_ext *ext);
+
+/* See <libdisplay-info/displayid2.h> */
+struct di_displayid2;
+
+/**
+ * Get a DisplayID v2 extension block.
+ *
+ * Returns NULL if the extension block tag is not DI_EDID_EXT_DISPLAYID or if
+ * the block does not contain a version 2 DisplayID blob.
+ */
+const struct di_displayid2 *
+di_edid_ext_get_displayid2(const struct di_edid_ext *ext);
 
 #endif
