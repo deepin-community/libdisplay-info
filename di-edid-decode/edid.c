@@ -91,39 +91,6 @@ print_standard_timing(const struct di_edid_standard_timing *t)
 	printf("\n");
 }
 
-static int
-gcd(int a, int b)
-{
-	int tmp;
-
-	while (b) {
-		tmp = b;
-		b = a % b;
-		a = tmp;
-	}
-
-	return a;
-}
-
-static void
-compute_aspect_ratio(int width, int height, int *horiz_ratio, int *vert_ratio)
-{
-	int d;
-
-	d = gcd(width, height);
-	if (d == 0) {
-		*horiz_ratio = *vert_ratio = 0;
-	} else {
-		*horiz_ratio = width / d;
-		*vert_ratio = height / d;
-	}
-
-	if (*horiz_ratio == 8 && *vert_ratio == 5) {
-		*horiz_ratio = 16;
-		*vert_ratio = 10;
-	}
-}
-
 /**
  * Join a list of strings into a comma-separated string.
  *
@@ -365,7 +332,7 @@ display_range_limits_type_name(enum di_edid_display_range_limits_type type)
 {
 	switch (type) {
 	case DI_EDID_DISPLAY_RANGE_LIMITS_BARE:
-		return "Bare Limits";
+		return "Range Limits Only";
 	case DI_EDID_DISPLAY_RANGE_LIMITS_DEFAULT_GTF:
 		return "GTF";
 	case DI_EDID_DISPLAY_RANGE_LIMITS_SECONDARY_GTF:
@@ -592,7 +559,7 @@ print_display_desc(const struct di_edid *edid,
 		       range_limits->min_horiz_rate_hz / 1000,
 		       range_limits->max_horiz_rate_hz / 1000);
 		if (range_limits->max_pixel_clock_hz != 0) {
-			printf(", max dotclock %d MHz",
+			printf(", max dotclock %"PRIi64" MHz",
 			       range_limits->max_pixel_clock_hz / (1000 * 1000));
 		}
 		printf("\n");
@@ -789,14 +756,17 @@ print_edid(const struct di_edid *edid)
 	printf("    Manufacturer: %.3s\n", vendor_product->manufacturer);
 	printf("    Model: %" PRIu16 "\n", vendor_product->product);
 	if (vendor_product->serial != 0) {
-		printf("    Serial Number: %" PRIu32 "\n", vendor_product->serial);
+		printf("    Serial Number: %" PRIu32 " (0x%08x)\n",
+		       vendor_product->serial, vendor_product->serial);
 	}
 	if (vendor_product->model_year != 0) {
 		printf("    Model year: %d\n", vendor_product->model_year);
-	} else {
+	} else if (vendor_product->manufacture_week != 0) {
 		printf("    Made in: week %d of %d\n",
 		       vendor_product->manufacture_week,
 		       vendor_product->manufacture_year);
+	} else {
+		printf("    Made in: %d\n", vendor_product->manufacture_year);
 	}
 
 	printf("  Basic Display Parameters & Features:\n");
@@ -913,7 +883,7 @@ print_edid(const struct di_edid *edid)
 		}
 	}
 	if (misc_features->continuous_freq) {
-		printf("    Display is continuous frequency\n");
+		printf("    Display supports continuous frequencies\n");
 	}
 	if (misc_features->default_gtf) {
 		printf("    Supports GTF timings within operating range\n");
