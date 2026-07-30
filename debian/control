@@ -2,14 +2,14 @@ Source: libdisplay-info
 Section: libs
 Priority: optional
 Maintainer: Marc Dequènes (Duck) <Duck@DuckCorp.org>
-Build-Depends: debhelper-compat (= 13), hwdata, meson, pkgconf
-Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13), edid-decode <!nocheck>, hwdata, meson, pkgconf
+Standards-Version: 4.7.0
 Homepage: https://gitlab.freedesktop.org/emersion/libdisplay-info
 Vcs-Browser: https://salsa.debian.org/debian/libdisplay-info
 Vcs-Git: https://salsa.debian.org/debian/libdisplay-info.git
 Rules-Requires-Root: no
 
-Package: libdisplay-info1
+Package: libdisplay-info3
 Architecture: any
 Multi-Arch: same
 Depends: ${misc:Depends}, ${shlibs:Depends}
@@ -25,7 +25,7 @@ Package: libdisplay-info-dev
 Section: libdevel
 Architecture: any
 Multi-Arch: same
-Depends: libdisplay-info1 (= ${binary:Version}), ${misc:Depends}
+Depends: libdisplay-info3 (= ${binary:Version}), ${misc:Depends}
 Description: EDID and DisplayID library (development files)
  This library parse EDID and DisplayID and focus on:
   * Providing a set of high-level, easy-to-use, opinionated functions as well
@@ -65,4 +65,3 @@ Description: EDID and DisplayID library (utils)
 # .
 # This package contains the sources, useful when linking to the library is not
 # possible.
-

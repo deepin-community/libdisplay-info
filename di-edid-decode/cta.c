@@ -5,6 +5,7 @@
 
 #include <libdisplay-info/cta.h>
 
+#include "bits.h"
 #include "di-edid-decode.h"
 
 static const char *
@@ -82,183 +83,217 @@ printf_cta_svds(const struct di_cta_svd *const *svds)
 		printf_cta_svd(svds[i]);
 }
 
+static void
+print_cta_hdmi_vic(uint8_t hdmi_vic)
+{
+	const struct di_cta_hdmi_video_format *fmt;
+	int32_t h_blank, v_blank;
+	double refresh, h_freq_hz, pixel_clock_mhz, h_total, v_total;
+	int horiz_ratio, vert_ratio;
+
+	printf("    HDMI VIC %" PRIu8, hdmi_vic);
+
+	fmt = di_cta_hdmi_video_format_from_hdmi_vic(hdmi_vic);
+	if (fmt == NULL)
+		return;
+
+	compute_aspect_ratio(fmt->h_active, fmt->v_active, &horiz_ratio, &vert_ratio);
+
+	h_blank = fmt->h_front + fmt->h_sync + fmt->h_back;
+	v_blank = fmt->v_front + fmt->v_sync + fmt->v_back;
+	h_total = fmt->h_active + h_blank;
+
+	v_total = fmt->v_active + v_blank;
+
+	refresh = (double) fmt->pixel_clock_hz / (h_total * v_total);
+	h_freq_hz = (double) fmt->pixel_clock_hz / h_total;
+	pixel_clock_mhz = (double) fmt->pixel_clock_hz / (1000 * 1000);
+
+	printf(":");
+	printf(" %5dx%-5d", fmt->h_active, fmt->v_active);
+	printf(" %10.6f Hz", refresh);
+	/* Not part of the spec, but edid-decode prints the aspect ratio. */
+	printf(" %3u:%-3u", horiz_ratio, vert_ratio);
+	printf(" %8.3f kHz %13.6f MHz", h_freq_hz / 1000, pixel_clock_mhz);
+}
+
 static const char *
-vesa_dddb_interface_type_name(enum di_cta_vesa_dddb_interface_type type)
+vesa_display_device_interface_type_name(enum di_cta_vesa_display_device_interface_type type)
 {
 	switch (type) {
-	case DI_CTA_VESA_DDDB_INTERFACE_VGA:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_VGA:
 		return "Analog (15HD/VGA)";
-	case DI_CTA_VESA_DDDB_INTERFACE_NAVI_V:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_NAVI_V:
 		return "Analog (VESA NAVI-V (15HD))";
-	case DI_CTA_VESA_DDDB_INTERFACE_NAVI_D:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_NAVI_D:
 		return "Analog (VESA NAVI-D)";
-	case DI_CTA_VESA_DDDB_INTERFACE_LVDS:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_LVDS:
 		return "LVDS";
-	case DI_CTA_VESA_DDDB_INTERFACE_RSDS:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_RSDS:
 		return "RSDS";
-	case DI_CTA_VESA_DDDB_INTERFACE_DVI_D:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_DVI_D:
 		return "DVI-D";
-	case DI_CTA_VESA_DDDB_INTERFACE_DVI_I_ANALOG:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_DVI_I_ANALOG:
 		return "DVI-I analog";
-	case DI_CTA_VESA_DDDB_INTERFACE_DVI_I_DIGITAL:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_DVI_I_DIGITAL:
 		return "DVI-I digital";
-	case DI_CTA_VESA_DDDB_INTERFACE_HDMI_A:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_HDMI_A:
 		return "HDMI-A";
-	case DI_CTA_VESA_DDDB_INTERFACE_HDMI_B:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_HDMI_B:
 		return "HDMI-B";
-	case DI_CTA_VESA_DDDB_INTERFACE_MDDI:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_MDDI:
 		return "MDDI";
-	case DI_CTA_VESA_DDDB_INTERFACE_DISPLAYPORT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_DISPLAYPORT:
 		return "DisplayPort";
-	case DI_CTA_VESA_DDDB_INTERFACE_IEEE_1394:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_IEEE_1394:
 		return "IEEE-1394";
-	case DI_CTA_VESA_DDDB_INTERFACE_M1_ANALOG:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_M1_ANALOG:
 		return "M1 analog";
-	case DI_CTA_VESA_DDDB_INTERFACE_M1_DIGITAL:
+	case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_M1_DIGITAL:
 		return "M1 digital";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_content_protection_name(enum di_cta_vesa_dddb_content_protection cp)
+vesa_display_device_content_protection_name(enum di_cta_vesa_display_device_content_protection cp)
 {
 	switch (cp) {
-	case DI_CTA_VESA_DDDB_CONTENT_PROTECTION_NONE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_CONTENT_PROTECTION_NONE:
 		return "None";
-	case DI_CTA_VESA_DDDB_CONTENT_PROTECTION_HDCP:
+	case DI_CTA_VESA_DISPLAY_DEVICE_CONTENT_PROTECTION_HDCP:
 		return "HDCP";
-	case DI_CTA_VESA_DDDB_CONTENT_PROTECTION_DTCP:
+	case DI_CTA_VESA_DISPLAY_DEVICE_CONTENT_PROTECTION_DTCP:
 		return "DTCP";
-	case DI_CTA_VESA_DDDB_CONTENT_PROTECTION_DPCP:
+	case DI_CTA_VESA_DISPLAY_DEVICE_CONTENT_PROTECTION_DPCP:
 		return "DPCP";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_default_orientation_name(enum di_cta_vesa_dddb_default_orientation orientation)
+vesa_display_device_default_orientation_name(enum di_cta_vesa_display_device_default_orientation orientation)
 {
 	switch (orientation) {
-	case DI_CTA_VESA_DDDB_DEFAULT_ORIENTATION_LANDSCAPE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DEFAULT_ORIENTATION_LANDSCAPE:
 		return "Landscape";
-	case DI_CTA_VESA_DDDB_DEFAULT_ORIENTATION_PORTAIT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DEFAULT_ORIENTATION_PORTAIT:
 		return "Portrait";
-	case DI_CTA_VESA_DDDB_DEFAULT_ORIENTATION_UNFIXED:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DEFAULT_ORIENTATION_UNFIXED:
 		return "Not Fixed";
-	case DI_CTA_VESA_DDDB_DEFAULT_ORIENTATION_UNDEFINED:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DEFAULT_ORIENTATION_UNDEFINED:
 		return "Undefined";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_rotation_cap_name(enum di_cta_vesa_dddb_rotation_cap rot)
+vesa_display_device_rotation_cap_name(enum di_cta_vesa_display_device_rotation_cap rot)
 {
 	switch (rot) {
-	case DI_CTA_VESA_DDDB_ROTATION_CAP_NONE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ROTATION_CAP_NONE:
 		return "None";
-	case DI_CTA_VESA_DDDB_ROTATION_CAP_90DEG_CLOCKWISE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ROTATION_CAP_90DEG_CLOCKWISE:
 		return "Can rotate 90 degrees clockwise";
-	case DI_CTA_VESA_DDDB_ROTATION_CAP_90DEG_COUNTERCLOCKWISE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ROTATION_CAP_90DEG_COUNTERCLOCKWISE:
 		return "Can rotate 90 degrees counterclockwise";
-	case DI_CTA_VESA_DDDB_ROTATION_CAP_90DEG_EITHER:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ROTATION_CAP_90DEG_EITHER:
 		return "Can rotate 90 degrees in either direction";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_zero_pixel_location_name(enum di_cta_vesa_dddb_zero_pixel_location loc)
+vesa_display_device_zero_pixel_location_name(enum di_cta_vesa_display_device_zero_pixel_location loc)
 {
 	switch (loc) {
-	case DI_CTA_VESA_DDDB_ZERO_PIXEL_UPPER_LEFT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ZERO_PIXEL_UPPER_LEFT:
 		return "Upper Left";
-	case DI_CTA_VESA_DDDB_ZERO_PIXEL_UPPER_RIGHT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ZERO_PIXEL_UPPER_RIGHT:
 		return "Upper Right";
-	case DI_CTA_VESA_DDDB_ZERO_PIXEL_LOWER_LEFT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ZERO_PIXEL_LOWER_LEFT:
 		return "Lower Left";
-	case DI_CTA_VESA_DDDB_ZERO_PIXEL_LOWER_RIGHT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_ZERO_PIXEL_LOWER_RIGHT:
 		return "Lower Right";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_scan_direction_name(enum di_cta_vesa_dddb_scan_direction dir)
+vesa_display_device_scan_direction_name(enum di_cta_vesa_display_device_scan_direction dir)
 {
 	switch (dir) {
-	case DI_CTA_VESA_DDDB_SCAN_DIRECTION_UNDEFINED:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SCAN_DIRECTION_UNDEFINED:
 		return "Not defined";
-	case DI_CTA_VESA_DDDB_SCAN_DIRECTION_FAST_LONG_SLOW_SHORT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SCAN_DIRECTION_FAST_LONG_SLOW_SHORT:
 		return "Fast Scan is on the Major (Long) Axis and Slow Scan is on the Minor Axis";
-	case DI_CTA_VESA_DDDB_SCAN_DIRECTION_FAST_SHORT_SLOW_LONG:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SCAN_DIRECTION_FAST_SHORT_SLOW_LONG:
 		return "Fast Scan is on the Minor (Short) Axis and Slow Scan is on the Major Axis";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_subpixel_layout_name(enum di_cta_vesa_dddb_subpixel_layout subpixel)
+vesa_display_device_subpixel_layout_name(enum di_cta_vesa_display_device_subpixel_layout subpixel)
 {
 	switch (subpixel) {
-	case DI_CTA_VESA_DDDB_SUBPIXEL_UNDEFINED:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_UNDEFINED:
 		return "Not defined";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_RGB_VERT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_RGB_VERT:
 		return "RGB vertical stripes";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_RGB_HORIZ:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_RGB_HORIZ:
 		return "RGB horizontal stripes";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_EDID_CHROM_VERT:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_EDID_CHROM_VERT:
 		return "Vertical stripes using primary order";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_EDID_CHROM_HORIZ:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_EDID_CHROM_HORIZ:
 		return "Horizontal stripes using primary order";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_QUAD_RGGB:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_QUAD_RGGB:
 		return "Quad sub-pixels, red at top left";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_QUAD_GBRG:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_QUAD_GBRG:
 		return "Quad sub-pixels, red at bottom left";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_DELTA_RGB:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_DELTA_RGB:
 		return "Delta (triad) RGB sub-pixels";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_MOSAIC:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_MOSAIC:
 		return "Mosaic";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_QUAD_ANY:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_QUAD_ANY:
 		return "Quad sub-pixels, RGB + 1 additional color";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_FIVE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_FIVE:
 		return "Five sub-pixels, RGB + 2 additional colors";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_SIX:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_SIX:
 		return "Six sub-pixels, RGB + 3 additional colors";
-	case DI_CTA_VESA_DDDB_SUBPIXEL_CLAIRVOYANTE_PENTILE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_SUBPIXEL_CLAIRVOYANTE_PENTILE:
 		return "Clairvoyante, Inc. PenTile Matrix (tm) layout";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_dithering_type_name(enum di_cta_vesa_dddb_dithering_type dithering)
+vesa_display_device_dithering_type_name(enum di_cta_vesa_display_device_dithering_type dithering)
 {
 	switch (dithering) {
-	case DI_CTA_VESA_DDDB_DITHERING_NONE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DITHERING_NONE:
 		return "None";
-	case DI_CTA_VESA_DDDB_DITHERING_SPACIAL:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DITHERING_SPACIAL:
 		return "Spacial";
-	case DI_CTA_VESA_DDDB_DITHERING_TEMPORAL:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DITHERING_TEMPORAL:
 		return "Temporal";
-	case DI_CTA_VESA_DDDB_DITHERING_SPATIAL_AND_TEMPORAL:
+	case DI_CTA_VESA_DISPLAY_DEVICE_DITHERING_SPATIAL_AND_TEMPORAL:
 		return "Spatial and Temporal";
 	}
 	abort(); /* unreachable */
 }
 
 static const char *
-vesa_dddb_frame_rate_conversion_name(enum di_cta_vesa_dddb_frame_rate_conversion conv)
+vesa_display_device_frame_rate_conversion_name(enum di_cta_vesa_display_device_frame_rate_conversion conv)
 {
 	switch (conv) {
-	case DI_CTA_VESA_DDDB_FRAME_RATE_CONVERSION_NONE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_FRAME_RATE_CONVERSION_NONE:
 		return "None";
-	case DI_CTA_VESA_DDDB_FRAME_RATE_CONVERSION_SINGLE_BUFFERING:
+	case DI_CTA_VESA_DISPLAY_DEVICE_FRAME_RATE_CONVERSION_SINGLE_BUFFERING:
 		return "Single Buffering";
-	case DI_CTA_VESA_DDDB_FRAME_RATE_CONVERSION_DOUBLE_BUFFERING:
+	case DI_CTA_VESA_DISPLAY_DEVICE_FRAME_RATE_CONVERSION_DOUBLE_BUFFERING:
 		return "Double Buffering";
-	case DI_CTA_VESA_DDDB_FRAME_RATE_CONVERSION_ADVANCED:
+	case DI_CTA_VESA_DISPLAY_DEVICE_FRAME_RATE_CONVERSION_ADVANCED:
 		return "Advanced Frame Rate Conversion";
 	}
 	abort(); /* unreachable */
@@ -271,29 +306,29 @@ truncate_chromaticity_coord(float coord)
 }
 
 static const char *
-vesa_dddb_resp_time_transition_name(enum di_cta_vesa_dddb_resp_time_transition t)
+vesa_display_device_resp_time_transition_name(enum di_cta_vesa_display_device_resp_time_transition t)
 {
 	switch (t) {
-	case DI_CTA_VESA_DDDB_RESP_TIME_BLACK_TO_WHITE:
+	case DI_CTA_VESA_DISPLAY_DEVICE_RESP_TIME_BLACK_TO_WHITE:
 		return "Black -> White";
-	case DI_CTA_VESA_DDDB_RESP_TIME_WHITE_TO_BLACK:
+	case DI_CTA_VESA_DISPLAY_DEVICE_RESP_TIME_WHITE_TO_BLACK:
 		return "White -> Black";
 	}
 	abort(); /* unreachable */
 }
 
 static void
-print_cta_vesa_dddb(const struct di_cta_vesa_dddb *dddb)
+print_cta_vesa_display_device(const struct di_cta_vesa_display_device_block *dddb)
 {
 	size_t i;
 
 	printf("    Interface Type: %s",
-	       vesa_dddb_interface_type_name(dddb->interface_type));
+	       vesa_display_device_interface_type_name(dddb->interface_type));
 	if (dddb->num_channels != 0) {
 		const char *kind;
 		switch (dddb->interface_type) {
-		case DI_CTA_VESA_DDDB_INTERFACE_LVDS:
-		case DI_CTA_VESA_DDDB_INTERFACE_RSDS:
+		case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_LVDS:
+		case DI_CTA_VESA_DISPLAY_DEVICE_INTERFACE_RSDS:
 			kind = "lanes";
 			break;
 		default:
@@ -308,7 +343,7 @@ print_cta_vesa_dddb(const struct di_cta_vesa_dddb *dddb)
 	       dddb->interface_version, dddb->interface_release);
 
 	printf("    Content Protection Support: %s\n",
-	       vesa_dddb_content_protection_name(dddb->content_protection));
+	       vesa_display_device_content_protection_name(dddb->content_protection));
 
 	printf("    Minimum Clock Frequency: %d MHz\n", dddb->min_clock_freq_mhz);
 	printf("    Maximum Clock Frequency: %d MHz\n", dddb->max_clock_freq_mhz);
@@ -316,19 +351,19 @@ print_cta_vesa_dddb(const struct di_cta_vesa_dddb *dddb)
 	       dddb->native_horiz_pixels, dddb->native_vert_pixels);
 	printf("    Aspect Ratio: %.2f\n", dddb->aspect_ratio);
 	printf("    Default Orientation: %s\n",
-	       vesa_dddb_default_orientation_name(dddb->default_orientation));
+	       vesa_display_device_default_orientation_name(dddb->default_orientation));
 	printf("    Rotation Capability: %s\n",
-	       vesa_dddb_rotation_cap_name(dddb->rotation_cap));
+	       vesa_display_device_rotation_cap_name(dddb->rotation_cap));
 	printf("    Zero Pixel Location: %s\n",
-	       vesa_dddb_zero_pixel_location_name(dddb->zero_pixel_location));
+	       vesa_display_device_zero_pixel_location_name(dddb->zero_pixel_location));
 	printf("    Scan Direction: %s\n",
-	       vesa_dddb_scan_direction_name(dddb->scan_direction));
+	       vesa_display_device_scan_direction_name(dddb->scan_direction));
 	printf("    Subpixel Information: %s\n",
-	       vesa_dddb_subpixel_layout_name(dddb->subpixel_layout));
+	       vesa_display_device_subpixel_layout_name(dddb->subpixel_layout));
 	printf("    Horizontal and vertical dot/pixel pitch: %.2f x %.2f mm\n",
 	       dddb->horiz_pitch_mm, dddb->vert_pitch_mm);
 	printf("    Dithering: %s\n",
-	       vesa_dddb_dithering_type_name(dddb->dithering_type));
+	       vesa_display_device_dithering_type_name(dddb->dithering_type));
 	printf("    Direct Drive: %s\n", dddb->direct_drive ? "Yes" : "No");
 	printf("    Overdrive %srecommended\n",
 	       dddb->overdrive_not_recommended ? "not " : "");
@@ -345,7 +380,7 @@ print_cta_vesa_dddb(const struct di_cta_vesa_dddb *dddb)
 		printf("    Audio Delay: no information provided\n");
 
 	printf("    Frame Rate/Mode Conversion: %s\n",
-	       vesa_dddb_frame_rate_conversion_name(dddb->frame_rate_conversion));
+	       vesa_display_device_frame_rate_conversion_name(dddb->frame_rate_conversion));
 	if (dddb->frame_rate_range_hz != 0)
 		printf("    Frame Rate Range: %d fps +/- %d fps\n",
 		       dddb->frame_rate_native_hz, dddb->frame_rate_range_hz);
@@ -364,7 +399,7 @@ print_cta_vesa_dddb(const struct di_cta_vesa_dddb *dddb)
 	}
 
 	printf("    Response Time %s: %d ms\n",
-	       vesa_dddb_resp_time_transition_name(dddb->resp_time_transition),
+	       vesa_display_device_resp_time_transition_name(dddb->resp_time_transition),
 	       dddb->resp_time_ms);
 	printf("    Overscan: %d%% x %d%%\n",
 	       dddb->overscan_horiz_pct, dddb->overscan_vert_pct);
@@ -450,7 +485,7 @@ print_cta_hdr_dynamic_metadata(const struct di_cta_hdr_dynamic_metadata_block *m
 }
 
 static void
-print_cta_vesa_transfer_characteristics(const struct di_cta_vesa_transfer_characteristics *tf)
+print_cta_vesa_transfer_characteristics(const struct di_cta_vesa_transfer_characteristics_block *tf)
 {
 	size_t i;
 
@@ -642,13 +677,14 @@ print_cta_sads(const struct di_cta_sad *const *sads)
 
 static void
 print_ycbcr420_cap_map(const struct di_edid_cta *cta,
-		       const struct di_cta_ycbcr420_cap_map *map)
+		       const struct di_cta_ycbcr420_cap_map_block *map)
 {
 	const struct di_cta_data_block *const *data_blocks;
 	const struct di_cta_data_block *data_block;
 	enum di_cta_data_block_tag tag;
 	const struct di_cta_svd *const *svds;
-	size_t i, j, svd_index = 0;
+	size_t global_svd_index, block_index_offset = 0;
+	size_t i, j;
 
 	data_blocks = di_edid_cta_get_data_blocks(cta);
 
@@ -659,12 +695,42 @@ print_ycbcr420_cap_map(const struct di_edid_cta *cta,
 		if (tag != DI_CTA_DATA_BLOCK_VIDEO)
 			continue;
 
-		svds = di_cta_data_block_get_svds(data_block);
+		svds = di_cta_data_block_get_video(data_block)->svds;
 		for (j = 0; svds[j] != NULL; j++) {
-			if (di_cta_ycbcr420_cap_map_supported(map, svd_index))
+			global_svd_index = svds[j]->original_index + block_index_offset;
+			if (di_cta_ycbcr420_cap_map_supported(map, global_svd_index))
 				printf_cta_svd(svds[j]);
+		}
+		if (j > 0)
+			block_index_offset += svds[j - 1]->original_index;
+	}
+}
 
-			svd_index++;
+static void
+printf_cta_svrs(const struct di_cta_svr *const *svrs)
+{
+	size_t i;
+	const struct di_cta_svr *svr;
+
+	/* TODO: resolve the references once we parse all timings and print
+	 * the resolved timings */
+
+	for (i = 0; svrs[i] != NULL; i++) {
+		svr = svrs[i];
+
+		switch (svr->type) {
+		case DI_CTA_SVR_TYPE_VIC:
+			printf("    VIC %3u\n", svr->vic);
+			break;
+		case DI_CTA_SVR_TYPE_DTD_INDEX:
+			printf("    DTD %3u\n", svr->dtd_index + 1);
+			break;
+		case DI_CTA_SVR_TYPE_T7T10VTDB:
+			printf("    VTDB %3u\n", svr->t7_t10_vtdb_index + 1);
+			break;
+		case DI_CTA_SVR_TYPE_FIRST_T8VTDB:
+			printf("    T8VTDB\n");
+			break;
 		}
 	}
 }
@@ -699,6 +765,511 @@ print_infoframes(const struct di_cta_infoframe_descriptor *const *infoframes)
 		infoframe = infoframes[i];
 		printf("    %s\n",
 		       cta_infoframe_type_name(infoframe->type));
+	}
+}
+
+static void
+print_did_type_vii_timing(const struct di_displayid_type_i_ii_vii_timing *t, int vtdb_index)
+{
+	char buf[32];
+	snprintf(buf, 32, "VTDB %d", vtdb_index + 1);
+	print_displayid_type_i_ii_vii_timing(t, 4, buf);
+}
+
+static void
+print_speaker_alloc(const struct di_cta_speaker_allocation *speaker_alloc, const char *prefix)
+{
+	if (speaker_alloc->fl_fr)
+		printf("%sFL/FR - Front Left/Right\n", prefix);
+	if (speaker_alloc->lfe1)
+		printf("%sLFE1 - Low Frequency Effects 1\n", prefix);
+	if (speaker_alloc->fc)
+		printf("%sFC - Front Center\n", prefix);
+	if (speaker_alloc->bl_br)
+		printf("%sBL/BR - Back Left/Right\n", prefix);
+	if (speaker_alloc->bc)
+		printf("%sBC - Back Center\n", prefix);
+	if (speaker_alloc->flc_frc)
+		printf("%sFLc/FRc - Front Left/Right of Center\n", prefix);
+	if (speaker_alloc->flw_frw)
+		printf("%sFLw/FRw - Front Left/Right Wide\n", prefix);
+	if (speaker_alloc->tpfl_tpfr)
+		printf("%sTpFL/TpFR - Top Front Left/Right\n", prefix);
+	if (speaker_alloc->tpc)
+		printf("%sTpC - Top Center\n", prefix);
+	if (speaker_alloc->tpfc)
+		printf("%sTpFC - Top Front Center\n", prefix);
+	if (speaker_alloc->ls_rs)
+		printf("%sLS/RS - Left/Right Surround\n", prefix);
+	if (speaker_alloc->tpbc)
+		printf("%sTpBC - Top Back Center\n", prefix);
+	if (speaker_alloc->lfe2)
+		printf("%sLFE2 - Low Frequency Effects 2\n", prefix);
+	if (speaker_alloc->sil_sir)
+		printf("%sSiL/SiR - Side Left/Right\n", prefix);
+	if (speaker_alloc->tpsil_tpsir)
+		printf("%sTpSiL/TpSiR - Top Side Left/Right\n", prefix);
+	if (speaker_alloc->tpbl_tpbr)
+		printf("%sTpBL/TpBR - Top Back Left/Right\n", prefix);
+	if (speaker_alloc->btfc)
+		printf("%sBtFC - Bottom Front Center\n", prefix);
+	if (speaker_alloc->btfl_btfr)
+		printf("%sBtFL/BtFR - Bottom Front Left/Right\n", prefix);
+}
+
+static void
+print_hdmi_audio(const struct di_cta_hdmi_audio_block *hdmi_audio)
+{
+	const struct di_cta_hdmi_audio_3d *audio_3d = hdmi_audio->audio_3d;
+	const struct di_cta_hdmi_audio_multi_stream *ms = hdmi_audio->multi_stream;
+
+	if (ms) {
+		printf("    Max Stream Count: %u\n", ms->max_streams);
+		if (ms->supports_non_mixed)
+			printf("    Supports MS NonMixed\n");
+	}
+
+	if (!audio_3d)
+		return;
+
+	print_cta_sads(audio_3d->sads);
+
+	switch (audio_3d->channels) {
+	case DI_CTA_HDMI_AUDIO_3D_CHANNELS_UNKNOWN:
+		printf("    Unknown Speaker Allocation\n");
+		break;
+	case DI_CTA_HDMI_AUDIO_3D_CHANNELS_10_2:
+		printf("    Speaker Allocation for 10.2 channels:\n");
+		break;
+	case DI_CTA_HDMI_AUDIO_3D_CHANNELS_22_2:
+		printf("    Speaker Allocation for 22.2 channels:\n");
+		break;
+	case DI_CTA_HDMI_AUDIO_3D_CHANNELS_30_2:
+		printf("    Speaker Allocation for 30.2 channels:\n");
+		break;
+	}
+
+	print_speaker_alloc (&audio_3d->speakers, "      ");
+}
+
+static void
+print_hdmi_latency(const char *type, bool supported, int latency)
+{
+	if (!supported) {
+		printf("    %s latency: %s not supported\n", type, type);
+		return;
+	}
+
+	if (latency == 0) {
+		printf("    %s latency: invalid or unknown\n", type);
+		return;
+	}
+
+	printf("    %s latency: %u ms\n", type, latency);
+}
+
+static void
+print_cta_hdmi(const struct di_cta_vendor_hdmi_block *hdmi)
+{
+	unsigned int i;
+
+	printf("    Source physical address: %x.%x.%x.%x\n",
+	       get_bit_range((uint8_t) (hdmi->source_phys_addr >> 8), 7, 4),
+	       get_bit_range((uint8_t) (hdmi->source_phys_addr >> 8), 3, 0),
+	       get_bit_range((uint8_t) (hdmi->source_phys_addr & 0xff), 7, 4),
+	       get_bit_range((uint8_t) (hdmi->source_phys_addr & 0xff), 3, 0));
+
+	if (hdmi->supports_ai)
+		printf("    Supports_AI\n");
+	if (hdmi->supports_dc_48bit)
+		printf("    DC_48bit\n");
+	if (hdmi->supports_dc_36bit)
+		printf("    DC_36bit\n");
+	if (hdmi->supports_dc_30bit)
+		printf("    DC_30bit\n");
+	if (hdmi->supports_dc_y444)
+		printf("    DC_Y444\n");
+	if (hdmi->supports_dvi_dual)
+		printf("    DVI_Dual\n");
+
+	if (hdmi->max_tmds_clock > 0)
+		printf("    Maximum TMDS clock: %u MHz\n", hdmi->max_tmds_clock);
+
+	if (hdmi->supports_content_graphics || hdmi->supports_content_photo ||
+	    hdmi->supports_content_cinema || hdmi->supports_content_game) {
+		printf("    Supported Content Types:\n");
+		if (hdmi->supports_content_graphics)
+			printf("      Graphics\n");
+		if (hdmi->supports_content_photo)
+			printf("      Photo\n");
+		if (hdmi->supports_content_cinema)
+			printf("      Cinema\n");
+		if (hdmi->supports_content_game)
+			printf("      Game\n");
+	}
+
+	if (hdmi->has_latency) {
+		print_hdmi_latency("Video", hdmi->supports_progressive_video,
+				   hdmi->progressive_video_latency);
+		print_hdmi_latency("Audio", hdmi->supports_progressive_audio,
+				   hdmi->progressive_audio_latency);
+	}
+
+	if (hdmi->has_interlaced_latency) {
+		print_hdmi_latency("Interlaced video", hdmi->supports_interlaced_video,
+				   hdmi->interlaced_video_latency);
+		print_hdmi_latency("Interlaced audio", hdmi->supports_interlaced_audio,
+				   hdmi->interlaced_audio_latency);
+	}
+
+	if (hdmi->vics_len > 0) {
+		printf("    Extended HDMI video details:\n");
+		printf("      HDMI VICs:\n");
+		for (i = 0; i < hdmi->vics_len; i++) {
+			printf("    ");
+			print_cta_hdmi_vic(hdmi->vics[i]);
+			printf("\n");
+		}
+	}
+}
+
+static int
+peak_lum_get_index(int peak_lum)
+{
+	switch (peak_lum) {
+	case 0:
+		return 0;
+	case 200:
+		return 1;
+	case 300:
+		return 2;
+	case 400:
+		return 3;
+	case 500:
+		return 4;
+	case 600:
+		return 5;
+	case 800:
+		return 6;
+	case 1000:
+		return 7;
+	case 1200:
+		return 8;
+	case 1500:
+		return 9;
+	case 2000:
+		return 10;
+	case 2500:
+		return 11;
+	case 3000:
+		return 12;
+	case 4000:
+		return 13;
+	case 6000:
+		return 14;
+	case 8000:
+		return 15;
+	}
+	abort(); /* unreachable */
+}
+
+static int
+ff_peak_lum_get_index(int ff_peak_lum, int peak_lum)
+{
+	float div;
+
+	if (peak_lum == 0)
+		return 0;
+
+	div = (float)ff_peak_lum / (float)peak_lum;
+
+	if (fabs(div - 0.1) <= 1e-5)
+		return 0;
+	else if (fabs(div - 0.2) <= 1e-5)
+		return 1;
+	else if (fabs(div - 0.4) <= 1e-5)
+		return 2;
+	else if (fabs(div - 0.8) <= 1e-5)
+		return 3;
+
+	abort(); /* unreachable */
+}
+
+static void
+print_cta_hdr10plus(const struct di_cta_hdr10plus_block *hdr10plus)
+{
+	int peak_lum_index, ff_peak_lum_index;
+
+	peak_lum_index = peak_lum_get_index(hdr10plus->peak_lum);
+	ff_peak_lum_index = ff_peak_lum_get_index(hdr10plus->ff_peak_lum,
+						  hdr10plus->peak_lum);
+
+	printf("    Application Version: %d\n", hdr10plus->version);
+	printf("    Full Frame Peak Luminance Index: %d\n", ff_peak_lum_index);
+	printf("    Peak Luminance Index: %d\n", peak_lum_index);
+}
+
+static double
+pq2nits(double pq)
+{
+	const double m1 = 2610.0 / 16384.0;
+	const double m2 = 128.0 * (2523.0 / 4096.0);
+	const double c1 = 3424.0 / 4096.0;
+	const double c2 = 32.0 * (2413.0 / 4096.0);
+	const double c3 = 32.0 * (2392.0 / 4096.0);
+	double e = pow(pq, 1.0 / m2);
+	double v = e - c1;
+
+	if (v < 0)
+		v = 0;
+	v /= c2 - c3 * e;
+	v = pow(v, 1.0 / m1);
+	return v * 10000.0;
+}
+
+static void
+print_cta_dolby_video(const struct di_cta_dolby_video_block *dv)
+{
+	switch (dv->version) {
+	case DI_CTA_DOLBY_VIDEO_VERSION0:
+		printf("    Version: 0 (22 bytes)\n");
+
+		if (dv->v0->yuv422_12bit)
+			printf("    Supports YUV422 12 bit\n");
+		if (dv->v0->supports_2160p60)
+			printf("    Supports 2160p60\n");
+		if (dv->v0->global_dimming)
+			printf("    Supports global dimming\n");
+
+		printf("    DM Version: %u.%u\n",
+		       dv->v0->dynamic_metadata_version_major,
+		       dv->v0->dynamic_metadata_version_minor);
+
+		printf("    Target Min PQ: %u (%.8f cd/m^2)\n",
+		       dv->v0->target_pq_12b_level_min,
+		       pq2nits(dv->v0->target_pq_12b_level_min / 4095.0));
+		printf("    Target Max PQ: %u (%u cd/m^2)\n",
+		       dv->v0->target_pq_12b_level_min,
+		       (unsigned)pq2nits(dv->v0->target_pq_12b_level_min / 4095.0));
+
+		printf("    Rx, Ry: %.8f, %.8f\n", dv->v0->red_x, dv->v0->red_y);
+		printf("    Gx, Gy: %.8f, %.8f\n", dv->v0->green_x, dv->v0->green_y);
+		printf("    Bx, By: %.8f, %.8f\n", dv->v0->blue_x, dv->v0->blue_y);
+		printf("    Wx, Wy: %.8f, %.8f\n", dv->v0->white_x, dv->v0->white_x);
+		break;
+	case DI_CTA_DOLBY_VIDEO_VERSION1:
+		printf("    Version: 1 (%d bytes)\n", dv->v1->unique_primaries ? 12 : 15);
+
+		if (dv->v1->yuv422_12bit)
+			printf("    Supports YUV422 12 bit\n");
+		if (dv->v1->supports_2160p60)
+			printf("    Supports 2160p60\n");
+		if (dv->v1->global_dimming)
+			printf("    Supports global dimming\n");
+
+		printf("    DM Version: %u.x\n", dv->v1->dynamic_metadata_version);
+
+		switch (dv->v1->colorimetry) {
+		case DI_CTA_DOLBY_VIDEO_COLORIMETRY_P3_D65:
+			printf("    Colorimetry: P3-D65\n");
+			break;
+		case DI_CTA_DOLBY_VIDEO_COLORIMETRY_BT_709:
+			printf("    Colorimetry: ITU-R BT.709\n");
+			break;
+		}
+
+		printf("    Low Latency: %s\n",
+		       dv->v1->mode_low_latency ? "Standard + Low Latency" : "Only Standard");
+
+		printf("    Target Min Luminance: %.8f cd/m^2\n", dv->v1->target_luminance_min);
+		printf("    Target Max Luminance: %u cd/m^2\n", (unsigned)dv->v1->target_luminance_max);
+
+		printf("    %sRx, Ry: %.8f, %.8f\n",
+		       dv->v1->unique_primaries ? "Unique " : "", dv->v1->red_x, dv->v1->red_y);
+		printf("    %sGx, Gy: %.8f, %.8f\n",
+		       dv->v1->unique_primaries ? "Unique " : "", dv->v1->green_x, dv->v1->green_y);
+		printf("    %sBx, By: %.8f, %.8f\n",
+		       dv->v1->unique_primaries ? "Unique " : "", dv->v1->blue_x, dv->v1->blue_y);
+		break;
+	case DI_CTA_DOLBY_VIDEO_VERSION2:
+		printf("    Version: 2 (12 bytes)\n");
+
+		if (dv->v2->yuv422_12bit)
+			printf("    Supports YUV422 12 bit\n");
+		if (dv->v2->backlight_control)
+			printf("    Supports Backlight Control\n");
+		if (dv->v2->global_dimming)
+			printf("    Supports global dimming\n");
+
+		printf("    DM Version: %u.x\n", dv->v2->dynamic_metadata_version);
+
+		printf("    Backlt Min Luma: %u cd/m^2\n", (unsigned)dv->v2->backlight_luminance_min);
+
+		printf("    Interface: ");
+		if (dv->v2->mode_standard && dv->v2->mode_low_latency_hdmi)
+			printf("Standard + Low-Latency + Low-Latency-HDMI\n");
+		else if (dv->v2->mode_low_latency_hdmi)
+			printf("Low-Latency + Low-Latency-HDMI\n");
+		else if (dv->v2->mode_standard)
+			printf("Standard + Low-Latency\n");
+		else
+			printf("Low-Latency\n");
+
+		printf("    Supports 10b 12b 444: ");
+		switch (dv->v2->yuv444) {
+		case DI_CTA_DOLBY_VIDEO_YUV444_NONE:
+			printf("Not supported\n");
+			break;
+		case DI_CTA_DOLBY_VIDEO_YUV444_10_BITS:
+			printf("10 bit\n");
+			break;
+		case DI_CTA_DOLBY_VIDEO_YUV444_12_BITS:
+			printf("12 bit\n");
+			break;
+		}
+
+		printf("    Target Min PQ v2: %u (%.8f cd/m^2)\n",
+		       dv->v2->target_pq_12b_level_min,
+		       pq2nits(dv->v2->target_pq_12b_level_min / 4095.0));
+		printf("    Target Max PQ v2: %u (%u cd/m^2)\n",
+		       dv->v2->target_pq_12b_level_max,
+		       (unsigned)pq2nits(dv->v2->target_pq_12b_level_max / 4095.0));
+
+		printf("    Unique Rx, Ry: %.8f, %.8f\n", dv->v2->red_x, dv->v2->red_y);
+		printf("    Unique Gx, Gy: %.8f, %.8f\n", dv->v2->green_x, dv->v2->green_y);
+		printf("    Unique Bx, By: %.8f, %.8f\n", dv->v2->blue_x, dv->v2->blue_y);
+		break;
+	}
+}
+
+static const char *
+max_frl_rate_name(enum di_cta_hdmi_frl frl)
+{
+	switch (frl) {
+	case DI_CTA_HDMI_FRL_3GBPS_3LANES:
+		return "3 Gbps per lane on 3 lanes";
+	case DI_CTA_HDMI_FRL_6GBPS_3LANES:
+		return "3 and 6 Gbps per lane on 3 lanes";
+	case DI_CTA_HDMI_FRL_6GBPS_4LANES:
+		return "3 and 6 Gbps per lane on 3 lanes, 6 Gbps on 4 lanes";
+	case DI_CTA_HDMI_FRL_8GBPS_4LANES:
+		return "3 and 6 Gbps per lane on 3 lanes, 6 and 8 Gbps on 4 lanes";
+	case DI_CTA_HDMI_FRL_10GBPS_4LANES:
+		return "3 and 6 Gbps per lane on 3 lanes, 6, 8 and 10 Gbps on 4 lanes";
+	case DI_CTA_HDMI_FRL_12GBPS_4LANES:
+		return "3 and 6 Gbps per lane on 3 lanes, 6, 8, 10 and 12 Gbps on 4 lanes";
+	default:
+		return "Not Supported";
+	}
+}
+
+static const char *
+dsc_max_slices_name(enum di_cta_hdmi_dsc_max_slices max_slice)
+{
+	switch (max_slice) {
+	case DI_CTA_HDMI_DSC_MAX_SLICES_1_340MHZ:
+		return "up to 1 slice and up to (340 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_2_340MHZ:
+		return "up to 2 slices and up to (340 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_4_340MHZ:
+		return "up to 4 slices and up to (340 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_8_340MHZ:
+		return "up to 8 slices and up to (340 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_8_400MHZ:
+		return "up to 8 slices and up to (400 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_12_400MHZ:
+		return "up to 12 slices and up to (400 MHz/Ksliceadjust) pixel clock per slice";
+	case DI_CTA_HDMI_DSC_MAX_SLICES_16_400MHZ:
+		return "up to 16 slices and up to (400 MHz/Ksliceadjust) pixel clock per slice";
+	default:
+		return "Not Supported";
+	}
+}
+
+static void
+print_cta_hdmi_scds(const struct di_cta_hdmi_scds *scds)
+{
+	const struct di_cta_hdmi_dsc *dsc;
+
+	printf("    Version: %u\n", scds->version);
+	if (scds->max_tmds_char_rate_mhz) {
+		printf("    Maximum TMDS Character Rate: %u MHz\n",
+		       scds->max_tmds_char_rate_mhz);
+	}
+	if (scds->supports_scdc)
+		printf("    SCDC Present\n");
+	if (scds->supports_scdc_read_request)
+		printf("    SCDC Read Request Capable\n");
+	if (scds->supports_cable_status)
+		printf("    Supports Cable Status\n");
+	if (scds->supports_ccbpci)
+		printf("    Supports Color Content Bits Per Component Indication\n");
+	if (scds->supports_lte_340mcsc_scramble)
+		printf("    Supports scrambling for <= 340 Mcsc\n");
+	if (scds->supports_3d_independent_view)
+		printf("    Supports 3D Independent View signaling\n");
+	if (scds->supports_3d_dual_view)
+		printf("    Supports 3D Dual View signaling\n");
+	if (scds->supports_3d_osd_disparity)
+		printf("    Supports 3D OSD Disparity signaling\n");
+
+	if (scds->max_frl_rate != DI_CTA_HDMI_FRL_UNSUPPORTED) {
+		printf("    Max Fixed Rate Link: %s\n",
+		       max_frl_rate_name (scds->max_frl_rate));
+	}
+
+	if (scds->supports_uhd_vic)
+		printf("    Supports UHD VIC\n");
+	if (scds->supports_dc_48bit_420)
+		printf("    Supports 16-bits/component Deep Color 4:2:0 Pixel Encoding\n");
+	if (scds->supports_dc_36bit_420)
+		printf("    Supports 12-bits/component Deep Color 4:2:0 Pixel Encoding\n");
+	if (scds->supports_dc_30bit_420)
+		printf("    Supports 10-bits/component Deep Color 4:2:0 Pixel Encoding\n");
+	if (scds->supports_fapa_end_extended)
+		printf("    Supports FAPA End Extended\n");
+	if (scds->supports_qms)
+		printf("    Supports QMS\n");
+	if (scds->m_delta)
+		printf("    Supports Mdelta\n");
+	if (scds->supports_cinema_vrr)
+		printf("    Supports media rates below VRRmin (CinemaVRR, deprecated)\n");
+	if (scds->supports_neg_mvrr)
+		printf("    Supports negative Mvrr values\n");
+	if (scds->supports_fva)
+		printf("    Supports Fast Vactive\n");
+	if (scds->supports_allm)
+		printf("    Supports Auto Low-Latency Mode\n");
+	if (scds->supports_fapa_start_location)
+		printf("    Supports a FAPA in blanking after first active video line\n");
+
+	if (scds->vrr_min_hz)
+		printf("    VRRmin: %u Hz\n", scds->vrr_min_hz);
+	if (scds->vrr_max_hz)
+		printf("    VRRmax: %u Hz\n", scds->vrr_max_hz);
+
+	if (scds->qms_tfr_max)
+		printf("    Supports QMS TFRmax\n");
+	if (scds->qms_tfr_min)
+		printf("    Supports QMS TFRmin\n");
+
+	dsc = scds->dsc;
+	if (dsc) {
+		printf("    Supports VESA DSC 1.2a compression\n");
+		if (dsc->supports_native_420)
+			printf("    Supports Compressed Video Transport for 4:2:0 Pixel Encoding\n");
+		if (dsc->supports_all_bpc)
+			printf("    Supports Compressed Video Transport at any valid 1/16th bit bpp\n");
+		if (dsc->supports_12bpc)
+			printf("    Supports 12 bpc Compressed Video Transport\n");
+		if (dsc->supports_10bpc)
+			printf("    Supports 10 bpc Compressed Video Transport\n");
+		printf("    DSC Max Slices: %s\n",
+		       dsc_max_slices_name(dsc->max_slices));
+		printf("    DSC Max Fixed Rate Link: %s\n",
+		       max_frl_rate_name(dsc->max_frl_rate));
+		printf("    Maximum number of bytes in a line of chunks: %u\n",
+		       dsc->max_total_chunk_bytes);
 	}
 }
 
@@ -752,6 +1323,14 @@ cta_data_block_tag_name(enum di_cta_data_block_tag tag)
 		return "HDMI Forum EDID Extension Override Data Block";
 	case DI_CTA_DATA_BLOCK_HDMI_SINK_CAP:
 		return "HDMI Forum Sink Capability Data Block";
+	case DI_CTA_DATA_BLOCK_VENDOR_HDMI:
+		return "Vendor-Specific Data Block (HDMI), OUI 00-0C-03";
+	case DI_CTA_DATA_BLOCK_DOLBY_VIDEO:
+		return "Vendor-Specific Video Data Block (Dolby), OUI 00-D0-46";
+	case DI_CTA_DATA_BLOCK_HDR10PLUS:
+		return "Vendor-Specific Video Data Block (HDR10+), OUI 90-84-8B";
+	case DI_CTA_DATA_BLOCK_VENDOR_HDMI_FORUM:
+		return "Vendor-Specific Data Block (HDMI Forum), OUI C4-5D-D8";
 	}
 	return "Unknown CTA-861 Data Block";
 }
@@ -783,16 +1362,25 @@ print_cta(const struct di_edid_cta *cta)
 	const struct di_cta_svd *const *svds;
 	const struct di_cta_speaker_alloc_block *speaker_alloc;
 	const struct di_cta_video_cap_block *video_cap;
-	const struct di_cta_vesa_dddb *vesa_dddb;
+	const struct di_cta_vesa_display_device_block *vesa_display_device;
 	const struct di_cta_colorimetry_block *colorimetry;
 	const struct di_cta_hdr_static_metadata_block *hdr_static_metadata;
 	const struct di_cta_hdr_dynamic_metadata_block *hdr_dynamic_metadata;
-	const struct di_cta_vesa_transfer_characteristics *transfer_characteristics;
+	const struct di_cta_vesa_transfer_characteristics_block *transfer_characteristics;
 	const struct di_cta_sad *const *sads;
-	const struct di_cta_ycbcr420_cap_map *ycbcr420_cap_map;
+	const struct di_cta_ycbcr420_cap_map_block *ycbcr420_cap_map;
 	const struct di_cta_infoframe_block *infoframe;
-	size_t i;
+	const struct di_cta_video_format_pref_block *video_format_pref;
 	const struct di_edid_detailed_timing_def *const *detailed_timing_defs;
+	const struct di_cta_type_vii_timing_block *type_vii_timing;
+	const struct di_cta_hdmi_audio_block *hdmi_audio;
+	const struct di_cta_vendor_hdmi_block *vendor_hdmi;
+	const struct di_cta_hdr10plus_block *hdr10plus;
+	const struct di_cta_dolby_video_block *dolby_video;
+	const struct di_cta_hdmi_forum_sink_cap *hdmi_sink_cap;
+	const struct di_cta_vendor_hdmi_forum_block *hdmi_forum;
+	size_t i;
+	int vtdb_index = 0;
 
 	printf("  Revision: %d\n", di_edid_cta_get_revision(cta));
 
@@ -820,51 +1408,16 @@ print_cta(const struct di_edid_cta *cta)
 
 		switch (data_block_tag) {
 		case DI_CTA_DATA_BLOCK_VIDEO:
-			svds = di_cta_data_block_get_svds(data_block);
+			svds = di_cta_data_block_get_video(data_block)->svds;
 			printf_cta_svds(svds);
 			break;
 		case DI_CTA_DATA_BLOCK_YCBCR420:
-			svds = di_cta_data_block_get_ycbcr420_svds(data_block);
+			svds = di_cta_data_block_get_ycbcr420_video (data_block)->svds;
 			printf_cta_svds(svds);
 			break;
 		case DI_CTA_DATA_BLOCK_SPEAKER_ALLOC:
 			speaker_alloc = di_cta_data_block_get_speaker_alloc(data_block);
-			if (speaker_alloc->flw_frw)
-				printf("    FLw/FRw - Front Left/Right Wide\n");
-			if (speaker_alloc->flc_frc)
-				printf("    FLc/FRc - Front Left/Right of Center\n");
-			if (speaker_alloc->bc)
-				printf("    BC - Back Center\n");
-			if (speaker_alloc->bl_br)
-				printf("    BL/BR - Back Left/Right\n");
-			if (speaker_alloc->fc)
-				printf("    FC - Front Center\n");
-			if (speaker_alloc->lfe1)
-				printf("    LFE1 - Low Frequency Effects 1\n");
-			if (speaker_alloc->fl_fr)
-				printf("    FL/FR - Front Left/Right\n");
-			if (speaker_alloc->tpsil_tpsir)
-				printf("    TpSiL/TpSiR - Top Side Left/Right\n");
-			if (speaker_alloc->sil_sir)
-				printf("    SiL/SiR - Side Left/Right\n");
-			if (speaker_alloc->tpbc)
-				printf("    TpBC - Top Back Center\n");
-			if (speaker_alloc->lfe2)
-				printf("    LFE2 - Low Frequency Effects 2\n");
-			if (speaker_alloc->ls_rs)
-				printf("    LS/RS - Left/Right Surround\n");
-			if (speaker_alloc->tpfc)
-				printf("    TpFC - Top Front Center\n");
-			if (speaker_alloc->tpc)
-				printf("    TpC - Top Center\n");
-			if (speaker_alloc->tpfl_tpfr)
-				printf("    TpFL/TpFR - Top Front Left/Right\n");
-			if (speaker_alloc->btfl_btfr)
-				printf("    BtFL/BtFR - Bottom Front Left/Right\n");
-			if (speaker_alloc->btfc)
-				printf("    BtFC - Bottom Front Center\n");
-			if (speaker_alloc->tpbl_tpbr)
-				printf("    TpBL/TpBR - Top Back Left/Right\n");
+			print_speaker_alloc(&speaker_alloc->speakers, "    ");
 			break;
 		case DI_CTA_DATA_BLOCK_VIDEO_CAP:
 			video_cap = di_cta_data_block_get_video_cap(data_block);
@@ -872,7 +1425,7 @@ print_cta(const struct di_edid_cta *cta)
 			       video_cap->selectable_ycc_quantization_range ?
 			       "Selectable (via AVI YQ)" : "No Data");
 			printf("    RGB quantization: %s\n",
-			       video_cap->selectable_ycc_quantization_range ?
+			       video_cap->selectable_rgb_quantization_range ?
 			       "Selectable (via AVI Q)" : "No Data");
 			printf("    PT scan behavior: %s\n",
 			       video_cap_over_underscan_name(video_cap->pt_over_underscan,
@@ -885,8 +1438,8 @@ print_cta(const struct di_edid_cta *cta)
 							     "CE video formats not supported"));
 			break;
 		case DI_CTA_DATA_BLOCK_VESA_DISPLAY_DEVICE:
-			vesa_dddb = di_cta_data_block_get_vesa_dddb(data_block);
-			print_cta_vesa_dddb(vesa_dddb);
+			vesa_display_device = di_cta_data_block_get_vesa_display_device(data_block);
+			print_cta_vesa_display_device(vesa_display_device);
 			break;
 		case DI_CTA_DATA_BLOCK_COLORIMETRY:
 			colorimetry = di_cta_data_block_get_colorimetry(data_block);
@@ -924,7 +1477,7 @@ print_cta(const struct di_edid_cta *cta)
 			print_cta_vesa_transfer_characteristics(transfer_characteristics);
 			break;
 		case DI_CTA_DATA_BLOCK_AUDIO:
-			sads = di_cta_data_block_get_sads(data_block);
+			sads = di_cta_data_block_get_audio(data_block)->sads;
 			print_cta_sads(sads);
 			break;
 		case DI_CTA_DATA_BLOCK_YCBCR420_CAP_MAP:
@@ -935,6 +1488,39 @@ print_cta(const struct di_edid_cta *cta)
 			infoframe = di_cta_data_block_get_infoframe(data_block);
 			printf("    VSIFs: %d\n", infoframe->num_simultaneous_vsifs - 1);
 			print_infoframes(infoframe->infoframes);
+			break;
+		case DI_CTA_DATA_BLOCK_VIDEO_FORMAT_PREF:
+			video_format_pref = di_cta_data_block_get_video_format_pref(data_block);
+			printf_cta_svrs(video_format_pref->svrs);
+			break;
+		case DI_CTA_DATA_BLOCK_DISPLAYID_VIDEO_TIMING_VII:
+			type_vii_timing = di_cta_data_block_get_did_type_vii_timing(data_block);
+			print_did_type_vii_timing(type_vii_timing->timing, vtdb_index);
+			vtdb_index++;
+			break;
+		case DI_CTA_DATA_BLOCK_HDMI_AUDIO:
+			hdmi_audio = di_cta_data_block_get_hdmi_audio(data_block);
+			print_hdmi_audio(hdmi_audio);
+			break;
+		case DI_CTA_DATA_BLOCK_VENDOR_HDMI:
+			vendor_hdmi = di_cta_data_block_get_vendor_hdmi(data_block);
+			print_cta_hdmi(vendor_hdmi);
+			break;
+		case DI_CTA_DATA_BLOCK_HDR10PLUS:
+			hdr10plus = di_cta_data_block_get_hdr10plus(data_block);
+			print_cta_hdr10plus(hdr10plus);
+			break;
+		case DI_CTA_DATA_BLOCK_DOLBY_VIDEO:
+			dolby_video = di_cta_data_block_get_dolby_video(data_block);
+			print_cta_dolby_video(dolby_video);
+			break;
+		case DI_CTA_DATA_BLOCK_HDMI_SINK_CAP:
+			hdmi_sink_cap = di_cta_data_block_get_hdmi_sink_cap(data_block);
+			print_cta_hdmi_scds(&hdmi_sink_cap->scds);
+			break;
+		case DI_CTA_DATA_BLOCK_VENDOR_HDMI_FORUM:
+			hdmi_forum = di_cta_data_block_get_vendor_hdmi_forum(data_block);
+			print_cta_hdmi_scds(&hdmi_forum->scds);
 			break;
 		default:
 			break; /* Ignore */

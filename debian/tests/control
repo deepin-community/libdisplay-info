@@ -1,0 +1,3 @@
+Test-Command: echo "ok"
+Depends: @builddeps@
+Restrictions: build-needed

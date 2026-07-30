@@ -11,7 +11,12 @@ include:
 # $ git push -f -o ci.variable="FDO_FORCE_REBUILD=1"
 variables:
   FDO_UPSTREAM_REPO: 'emersion/libdisplay-info'
-  FDO_DISTRIBUTION_TAG: '2023-01-31.0'
+  FDO_DISTRIBUTION_TAG: '2025-01-20.0'
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_PIPELINE_SOURCE == 'push'
 
 stages:
   - "Contribution checks"
@@ -30,38 +35,54 @@ check-mr:
       when: always
     - when: never
 
-check-test-data:
-  extends: .fdo.ci-fairy
-  stage: "Contribution checks"
-  script:
-   - |
-     for f in ./test/data/*.edid; do
-       grep -q "^$(basename ${f%.edid})\s" ./test/data/README.md
-       [[ $? -ne 0 ]] && echo "$f not in README.md" && exit 1
-     done
-     exit 0
-  rules:
-    - when: on_success
-
 prepare-container:
   extends: .fdo.container-build@alpine@x86_64
   stage: "Prepare container"
   variables:
-    FDO_BASE_IMAGE: alpine:3.17
+    V4L_UTILS_COMMIT: 1316a80455ef70889bea89491f37cd69170f3ee7
+    FDO_BASE_IMAGE: alpine:latest
     FDO_DISTRIBUTION_PACKAGES: |
       build-base clang compiler-rt meson make git gcovr py3-pygments go hwdata
+      perl argp-standalone gettext-dev linux-headers
     FDO_DISTRIBUTION_EXEC: |
-      git clone git://linuxtv.org/edid-decode.git
-      cd edid-decode
-      git checkout 915b0ce5329f417d2c3f84ddab3d443dd0e01b61
-      make
-      make install
+      grep $V4L_UTILS_COMMIT ./subprojects/v4l-utils.wrap >/dev/null || \
+        (echo "Keep v4l-utils.wrap and CI in sync!" && exit 1)
+      git clone https://git.linuxtv.org/v4l-utils.git
+      cd v4l-utils
+      git checkout $V4L_UTILS_COMMIT
+      meson setup build/ \
+        -Dauto_features=disabled \
+        -Dv4l-plugins=false \
+        -Dv4l-wrappers=false \
+        -Dv4l2-compliance-libv4l=false \
+        -Dv4l2-ctl-libv4l=false \
+        -Dv4l2-ctl-stream-to=false
+      ninja -C build/
+      ninja -C build/ install
       cd ..
       rm -rf edid-decode
 
       go install git.sr.ht/~emersion/gyosu@latest
       mv ~/go/bin/gyosu /usr/bin/
       rm -rf ~/go
+  rules:
+    - when: on_success
+
+testing-check:
+  extends: .fdo.distribution-image@alpine
+  stage: "Build and test"
+  script:
+   - |
+     # Check if the origin of all test EDIDs is documented
+     for f in ./test/data/*.edid; do
+       grep -q "^$(basename ${f%.edid})\s" ./test/data/README.md ||
+         (echo "$f not in README.md" && exit 1)
+     done
+     # Check if the test references checked in the repo match what we have in CI
+     meson setup build/
+     ninja -C build/ gen-test-data
+     git diff --quiet ||
+       (echo "Checked in reference output does not match generated reference output" && exit 1)
   rules:
     - when: on_success
 
@@ -91,7 +112,7 @@ build-clang:
   script:
     - CC=clang meson setup build/ --fatal-meson-warnings -Dwerror=true -Db_sanitize=address,undefined -Db_lundef=false
     - ninja -C build/
-    - ninja -C build/ test
+    - UBSAN_OPTIONS=halt_on_error=1 ninja -C build/ test
   artifacts:
     when: always
     paths:

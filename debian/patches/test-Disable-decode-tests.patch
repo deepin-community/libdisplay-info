@@ -1,0 +1,34 @@
+From: =?utf-8?q?Jeremy_B=C3=ADcha?= <jeremy.bicha@canonical.com>
+Date: Thu, 20 Jun 2024 15:38:49 -0400
+Subject: test: Disable decode tests
+
+These tests depend on a particular commit of edid-decode
+---
+ test/meson.build | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/test/meson.build b/test/meson.build
+index 54b11ac..69c7734 100644
+--- a/test/meson.build
++++ b/test/meson.build
+@@ -41,13 +41,13 @@ test_env = [
+ ]
+ 
+ foreach tc : test_cases
+-	test(
+-		'decode-' + tc,
+-		test_harness,
+-		args: [files('data/' + tc + '.edid')],
+-		env: test_env,
+-		depends: [di_edid_decode],
+-	)
++#	test(
++#		'decode-' + tc,
++#		test_harness,
++#		args: [files('data/' + tc + '.edid')],
++#		env: test_env,
++#		depends: [di_edid_decode],
++#	)
+ 	test(
+ 		'print-' + tc,
+ 		print_harness,
