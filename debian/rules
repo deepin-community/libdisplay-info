@@ -5,8 +5,4 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 
 %:
-	dh $@ --buildsystem=meson
-
-# requires a specific commit of edid-decode for tests to pass
-override_dh_auto_test:
-
+	dh $@

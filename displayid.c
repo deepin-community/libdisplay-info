@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "bits.h"
 #include "displayid.h"
@@ -23,6 +24,14 @@
  * The size of a DisplayID type I timing.
  */
 #define DISPLAYID_TYPE_I_TIMING_SIZE 20
+/**
+ * The size of a DisplayID type II timing.
+ */
+#define DISPLAYID_TYPE_II_TIMING_SIZE 11
+/**
+ * The size of a DisplayID type III timing.
+ */
+#define DISPLAYID_TYPE_III_TIMING_SIZE 3
 
 static bool
 is_all_zeroes(const uint8_t *data, size_t size)
@@ -44,6 +53,16 @@ add_failure(struct di_displayid *displayid, const char fmt[], ...)
 
 	va_start(args, fmt);
 	_di_logger_va_add_failure(displayid->logger, fmt, args);
+	va_end(args);
+}
+
+static void
+logger_add_failure(struct di_logger *logger, const char fmt[], ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	_di_logger_va_add_failure(logger, fmt, args);
 	va_end(args);
 }
 
@@ -111,57 +130,63 @@ parse_display_params_block(struct di_displayid *displayid,
 }
 
 static bool
-parse_type_i_timing(struct di_displayid *displayid,
-		    struct di_displayid_data_block *data_block,
-		    const uint8_t data[static DISPLAYID_TYPE_I_TIMING_SIZE])
+timing_aspect_ratio_is_valid(uint8_t raw)
+{
+	switch (raw) {
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_1_1:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_5_4:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_4_3:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_15_9:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_16_9:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_16_10:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_64_27:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_256_135:
+	case DI_DISPLAYID_TIMING_ASPECT_RATIO_UNDEFINED:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool
+_di_displayid_parse_type_1_7_timing(struct di_displayid_type_i_ii_vii_timing *t,
+				    struct di_logger *logger,
+				    const char *prefix,
+				    const uint8_t *data,
+				    bool is_type7)
 {
 	int raw_pixel_clock;
 	uint8_t stereo_3d, aspect_ratio;
 
-	struct di_displayid_type_i_timing *t = calloc(1, sizeof(*t));
-	if (t == NULL) {
-		return false;
-	}
-
 	raw_pixel_clock = data[0] | (data[1] << 8) | (data[2] << 16);
-	t->pixel_clock_mhz = (double)(1 + raw_pixel_clock) * 0.01;
+	if (is_type7)
+		t->pixel_clock_mhz = (double)(1 + raw_pixel_clock) * 0.001;
+	else
+		t->pixel_clock_mhz = (double)(1 + raw_pixel_clock) * 0.01;
 
 	t->preferred = has_bit(data[3], 7);
 	t->interlaced = has_bit(data[3], 4);
 
 	stereo_3d = get_bit_range(data[3], 6, 5);
 	switch (stereo_3d) {
-	case DI_DISPLAYID_TYPE_I_TIMING_STEREO_3D_NEVER:
-	case DI_DISPLAYID_TYPE_I_TIMING_STEREO_3D_ALWAYS:
-	case DI_DISPLAYID_TYPE_I_TIMING_STEREO_3D_USER:
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_NEVER:
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_ALWAYS:
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_USER:
 		t->stereo_3d = stereo_3d;
 		break;
 	default:
-		add_failure(displayid,
-			    "Video Timing Modes Type 1 - Detailed Timings Data Block: Reserved stereo 0x%02x.",
-			    stereo_3d);
+		logger_add_failure(logger, "%s: Reserved stereo 0x%02x.",
+				   prefix, stereo_3d);
 		break;
 	}
 
 	aspect_ratio = get_bit_range(data[3], 3, 0);
-	switch (aspect_ratio) {
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_1_1:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_5_4:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_4_3:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_15_9:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_16_9:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_16_10:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_64_27:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_256_135:
-	case DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_UNDEFINED:
+	if (timing_aspect_ratio_is_valid(aspect_ratio)) {
 		t->aspect_ratio = aspect_ratio;
-		break;
-	default:
-		t->aspect_ratio = DI_DISPLAYID_TYPE_I_TIMING_ASPECT_RATIO_UNDEFINED;
-		add_failure(displayid,
-			    "Video Timing Modes Type 1 - Detailed Timings Data Block: Unknown aspect 0x%02x.",
-			    aspect_ratio);
-		break;
+	} else {
+		t->aspect_ratio = DI_DISPLAYID_TIMING_ASPECT_RATIO_UNDEFINED;
+		logger_add_failure(logger, "%s: Unknown aspect 0x%02x.",
+				   prefix, aspect_ratio);
 	}
 
 	t->horiz_active = 1 + (data[4] | (data[5] << 8));
@@ -175,6 +200,27 @@ parse_type_i_timing(struct di_displayid *displayid,
 	t->vert_sync_polarity = has_bit(data[17], 7);
 	t->vert_sync_width = 1 + (data[18] | (data[19] << 8));
 
+	return true;
+}
+
+static bool
+parse_type_i_timing(struct di_displayid *displayid,
+		    struct di_displayid_data_block *data_block,
+		    const uint8_t data[static DISPLAYID_TYPE_I_TIMING_SIZE])
+{
+	struct di_displayid_type_i_ii_vii_timing timing, *t;
+
+	if (!_di_displayid_parse_type_1_7_timing(&timing, displayid->logger,
+						 "Video Timing Modes Type 1 - Detailed Timings Data Block",
+						 data, false))
+		return false;
+
+	t = calloc(1, sizeof(*t));
+	if (t == NULL) {
+		return false;
+	}
+
+	*t = timing;
 	assert(data_block->type_i_timings_len < DISPLAYID_MAX_TYPE_I_TIMINGS);
 	data_block->type_i_timings[data_block->type_i_timings_len++] = t;
 	return true;
@@ -200,6 +246,96 @@ parse_type_i_timing_block(struct di_displayid *displayid,
 	     i + DISPLAYID_TYPE_I_TIMING_SIZE <= size;
 	     i += DISPLAYID_TYPE_I_TIMING_SIZE) {
 		if (!parse_type_i_timing(displayid, data_block, &data[i])) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+static bool
+parse_type_ii_timing(struct di_displayid *displayid,
+		     struct di_displayid_data_block *data_block,
+		     const uint8_t data[static DISPLAYID_TYPE_II_TIMING_SIZE])
+{
+	int raw_pixel_clock;
+	uint8_t stereo_3d;
+
+	struct di_displayid_type_i_ii_vii_timing *t = calloc(1, sizeof(*t));
+	if (t == NULL) {
+		return false;
+	}
+
+	t->aspect_ratio = DI_DISPLAYID_TIMING_ASPECT_RATIO_UNDEFINED;
+
+	raw_pixel_clock = data[0] | (data[1] << 8) | (data[2] << 16);
+	t->pixel_clock_mhz = (double)(1 + raw_pixel_clock) * 0.01;
+
+	t->preferred = has_bit(data[3], 7);
+	t->interlaced = has_bit(data[3], 4);
+
+	stereo_3d = get_bit_range(data[3], 6, 5);
+	switch (stereo_3d) {
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_NEVER:
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_ALWAYS:
+	case DI_DISPLAYID_TYPE_I_II_VII_TIMING_STEREO_3D_USER:
+		t->stereo_3d = stereo_3d;
+		break;
+	default:
+		add_failure(displayid,
+			    "Video Timing Modes Type 2 - Detailed Timings Data Block: Reserved stereo 0x%02x.",
+			    stereo_3d);
+		break;
+	}
+
+	t->horiz_sync_polarity = has_bit(data[3], 3);
+	t->vert_sync_polarity = has_bit(data[3], 2);
+
+	if (get_bit_range(data[3], 1, 0) != 0) {
+		add_failure(displayid,
+			    "Video Timing Modes Type 2 - Detailed Timings Data Block: "
+			    "Timing Options bit 1-0 are reserved.");
+	}
+
+	t->horiz_active = 8 + 8 * (data[4] | (get_bit_range(data[5], 0, 0) << 8));
+	t->horiz_blank = 8 + 8 * get_bit_range(data[5], 7, 1);
+	t->horiz_offset = 8 + 8 * get_bit_range(data[6], 7, 4);
+	t->horiz_sync_width = 8 + 8 * get_bit_range(data[6], 3, 0);
+	t->vert_active = 1 + (data[7] | (get_bit_range(data[8], 3, 0) << 8));
+	if (get_bit_range(data[8], 7, 4) != 0) {
+		add_failure(displayid,
+			    "Video Timing Modes Type 2 - Detailed Timings Data Block: "
+			    "Vertical Active Image bits 7-4 are reserved.");
+	}
+	t->vert_blank = 1 + data[9];
+	t->vert_offset = 1 + get_bit_range(data[9], 7, 4);
+	t->vert_sync_width = 1 + get_bit_range(data[9], 3, 0);
+
+	assert(data_block->type_ii_timings_len < DISPLAYID_MAX_TYPE_II_TIMINGS);
+	data_block->type_ii_timings[data_block->type_ii_timings_len++] = t;
+	return true;
+}
+
+static bool
+parse_type_ii_timing_block(struct di_displayid *displayid,
+			   struct di_displayid_data_block *data_block,
+			   const uint8_t *data, size_t size)
+{
+	size_t i;
+
+	check_data_block_revision(displayid, data,
+				  "Video Timing Modes Type 2 - Detailed Timings Data Block",
+				  0);
+
+	if ((size - DISPLAYID_DATA_BLOCK_HEADER_SIZE) % DISPLAYID_TYPE_II_TIMING_SIZE != 0) {
+		add_failure(displayid,
+			    "Video Timing Modes Type 2 - Detailed Timings Data Block: payload size not divisible by element size.");
+	}
+
+	for (i = DISPLAYID_DATA_BLOCK_HEADER_SIZE;
+	     i + DISPLAYID_TYPE_II_TIMING_SIZE <= size;
+	     i += DISPLAYID_TYPE_II_TIMING_SIZE) {
+		if (!parse_type_ii_timing(displayid, data_block, &data[i])) {
 			return false;
 		}
 	}
@@ -295,11 +431,87 @@ parse_tiled_topo_block(struct di_displayid *displayid,
 	}
 
 	memcpy(tiled_topo->vendor_id, &data[0x10], 3);
-	tiled_topo->product_code = data[0x13] | (uint16_t)(data[0x14] << 8);
+	tiled_topo->product_code = (uint16_t)(data[0x13] | (data[0x14] << 8));
 	tiled_topo->serial_number = data[0x15] |
 				    (uint32_t)(data[0x16] << 8) |
 				    (uint32_t)(data[0x17] << 16) |
 				    (uint32_t)(data[0x18] << 24);
+
+	return true;
+}
+
+static bool
+parse_type_iii_timing(struct di_displayid *displayid,
+		      struct di_displayid_data_block *data_block,
+		      const uint8_t data[static DISPLAYID_TYPE_III_TIMING_SIZE])
+{
+	struct di_displayid_type_iii_timing *t;
+	uint8_t algo, aspect_ratio;
+
+	t = calloc(1, sizeof(*t));
+	if (t == NULL)
+		return false;
+
+	t->preferred = has_bit(data[0], 7);
+
+	algo = get_bit_range(data[0], 6, 4);
+	switch (algo) {
+	case DI_DISPLAYID_TYPE_III_TIMING_CVT_STANDARD_BLANKING:
+	case DI_DISPLAYID_TYPE_III_TIMING_CVT_REDUCED_BLANKING:
+		t->algo = algo;
+		break;
+	default:
+		add_failure(displayid,
+			    "Video Timing Modes Type 3 - Short Timings Data Block: Reserved algorithm 0x%02x.",
+			    algo);
+		goto error_reserved;
+	}
+
+	aspect_ratio = get_bit_range(data[0], 3, 0);
+	if (timing_aspect_ratio_is_valid(aspect_ratio)) {
+		t->aspect_ratio = aspect_ratio;
+	} else {
+		add_failure(displayid,
+			    "Video Timing Modes Type 3 - Short Timings Data Block: Reserved aspect ratio 0x%02x.",
+			    aspect_ratio);
+		goto error_reserved;
+	}
+
+	t->horiz_active = ((int32_t)data[1] + 1) * 8;
+
+	t->interlaced = has_bit(data[2], 7);
+	t->refresh_rate_hz = (int32_t)get_bit_range(data[2], 6, 0) + 1;
+
+	assert(data_block->type_iii_timings_len < DISPLAYID_MAX_TYPE_III_TIMINGS);
+	data_block->type_iii_timings[data_block->type_iii_timings_len++] = t;
+	return true;
+
+error_reserved:
+	free(t);
+	return true;
+}
+
+static bool
+parse_type_iii_timing_block(struct di_displayid *displayid,
+			    struct di_displayid_data_block *data_block,
+			    const uint8_t *data, size_t size)
+{
+	size_t i;
+
+	check_data_block_revision(displayid, data,
+				  "Video Timing Modes Type 3 - Short Timings Data Block",
+				  1);
+
+	if ((size - DISPLAYID_DATA_BLOCK_HEADER_SIZE) % DISPLAYID_TYPE_III_TIMING_SIZE != 0)
+		add_failure(displayid,
+			    "Video Timing Modes Type 3 - Short Timings Data Block: payload size not divisible by element size.");
+
+	for (i = DISPLAYID_DATA_BLOCK_HEADER_SIZE;
+	     i + DISPLAYID_TYPE_III_TIMING_SIZE <= size;
+	     i += DISPLAYID_TYPE_III_TIMING_SIZE) {
+		if (!parse_type_iii_timing(displayid, data_block, &data[i]))
+			return false;
+	}
 
 	return true;
 }
@@ -343,10 +555,16 @@ parse_data_block(struct di_displayid *displayid, const uint8_t *data,
 					    data_block_size))
 			goto skip;
 		break;
+	case DI_DISPLAYID_DATA_BLOCK_TYPE_II_TIMING:
+		if (!parse_type_ii_timing_block(displayid, data_block, data, data_block_size))
+			goto error;
+		break;
+	case DI_DISPLAYID_DATA_BLOCK_TYPE_III_TIMING:
+		if (!parse_type_iii_timing_block(displayid, data_block, data, data_block_size))
+			goto error;
+		break;
 	case DI_DISPLAYID_DATA_BLOCK_PRODUCT_ID:
 	case DI_DISPLAYID_DATA_BLOCK_COLOR_CHARACT:
-	case DI_DISPLAYID_DATA_BLOCK_TYPE_II_TIMING:
-	case DI_DISPLAYID_DATA_BLOCK_TYPE_III_TIMING:
 	case DI_DISPLAYID_DATA_BLOCK_TYPE_IV_TIMING:
 	case DI_DISPLAYID_DATA_BLOCK_VESA_TIMING:
 	case DI_DISPLAYID_DATA_BLOCK_CEA_TIMING:
@@ -406,6 +624,14 @@ validate_checksum(const uint8_t *data, size_t size)
 	return sum == 0;
 }
 
+int
+_di_displayid_parse_version(const uint8_t *data, size_t size)
+{
+	if (size == 0)
+		return 0;
+	return get_bit_range(data[0x00], 7, 4);
+}
+
 bool
 _di_displayid_parse(struct di_displayid *displayid, const uint8_t *data,
 		    size_t size, struct di_logger *logger)
@@ -421,7 +647,7 @@ _di_displayid_parse(struct di_displayid *displayid, const uint8_t *data,
 
 	displayid->logger = logger;
 
-	displayid->version = get_bit_range(data[0x00], 7, 4);
+	displayid->version = _di_displayid_parse_version(data, size);
 	displayid->revision = get_bit_range(data[0x00], 3, 0);
 	if (displayid->version == 0 || displayid->version > 1) {
 		errno = ENOTSUP;
@@ -491,6 +717,14 @@ destroy_data_block(struct di_displayid_data_block *data_block)
 		for (i = 0; i < data_block->type_i_timings_len; i++)
 			free(data_block->type_i_timings[i]);
 		break;
+	case DI_DISPLAYID_DATA_BLOCK_TYPE_II_TIMING:
+		for (i = 0; i < data_block->type_ii_timings_len; i++)
+			free(data_block->type_ii_timings[i]);
+		break;
+	case DI_DISPLAYID_DATA_BLOCK_TYPE_III_TIMING:
+		for (i = 0; i < data_block->type_iii_timings_len; i++)
+			free(data_block->type_iii_timings[i]);
+		break;
 	default:
 		break; /* Nothing to do */
 	}
@@ -540,13 +774,22 @@ di_displayid_data_block_get_display_params(const struct di_displayid_data_block 
 	return &data_block->display_params.base;
 }
 
-const struct di_displayid_type_i_timing *const *
+const struct di_displayid_type_i_ii_vii_timing *const *
 di_displayid_data_block_get_type_i_timings(const struct di_displayid_data_block *data_block)
 {
 	if (data_block->tag != DI_DISPLAYID_DATA_BLOCK_TYPE_I_TIMING) {
 		return NULL;
 	}
-	return (const struct di_displayid_type_i_timing *const *) data_block->type_i_timings;
+	return (const struct di_displayid_type_i_ii_vii_timing *const *) data_block->type_i_timings;
+}
+
+const struct di_displayid_type_i_ii_vii_timing *const *
+di_displayid_data_block_get_type_ii_timings(const struct di_displayid_data_block *data_block)
+{
+	if (data_block->tag != DI_DISPLAYID_DATA_BLOCK_TYPE_II_TIMING) {
+		return NULL;
+	}
+	return (const struct di_displayid_type_i_ii_vii_timing *const *) data_block->type_ii_timings;
 }
 
 const struct di_displayid_tiled_topo *
@@ -556,6 +799,15 @@ di_displayid_data_block_get_tiled_topo(const struct di_displayid_data_block *dat
 		return NULL;
 	}
 	return &data_block->tiled_topo.base;
+}
+
+const struct di_displayid_type_iii_timing *const *
+di_displayid_data_block_get_type_iii_timings(const struct di_displayid_data_block *data_block)
+{
+	if (data_block->tag != DI_DISPLAYID_DATA_BLOCK_TYPE_III_TIMING) {
+		return NULL;
+	}
+	return (const struct di_displayid_type_iii_timing *const *) data_block->type_iii_timings;
 }
 
 const struct di_displayid_data_block *const *

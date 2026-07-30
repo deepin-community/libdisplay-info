@@ -13,6 +13,7 @@
 
 #include "cta.h"
 #include "displayid.h"
+#include "displayid2.h"
 
 /**
  * The maximum number of EDID blocks (including the base block), defined in
@@ -120,7 +121,7 @@ struct di_edid_display_descriptor {
 	size_t established_timings_iii_len;
 	/* Used for DCM_DATA */
 	struct di_edid_color_management_data dcm_data;
-	/* Used for DI_EDID_DISPLAY_DESCRIPTOR_CVT_TIMING_CODES, NULL-terminated */
+	/* Used for CVT_TIMING_CODES, NULL-terminated */
 	struct di_edid_cvt_timing_code *cvt_timing_codes[EDID_MAX_DESCRIPTOR_CVT_TIMING_CODES_COUNT + 1];
 	size_t cvt_timing_codes_len;
 };
@@ -130,7 +131,9 @@ struct di_edid_ext {
 	/* Used for DI_EDID_EXT_CEA */
 	struct di_edid_cta cta;
 	/* Used for DI_EDID_EXT_DISPLAYID */
+	int displayid_version;
 	struct di_displayid displayid;
+	struct di_displayid2 displayid2;
 };
 
 /**
