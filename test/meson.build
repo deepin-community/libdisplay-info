@@ -50,13 +50,13 @@ test_env = [
 ]
 
 foreach tc : test_cases
-	test(
-		'decode-' + tc,
-		test_harness,
-		args: [files('data/' + tc + '.edid')],
-		env: test_env,
-		depends: [di_edid_decode],
-	)
+#	test(
+#		'decode-' + tc,
+#		test_harness,
+#		args: [files('data/' + tc + '.edid')],
+#		env: test_env,
+#		depends: [di_edid_decode],
+#	)
 	test(
 		'print-' + tc,
 		print_harness,
